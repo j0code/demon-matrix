@@ -1,0 +1,10 @@
+{
+	account: {
+		homeserver_url: "https://matrix.org",
+		username: "INSERT_USERNAME_HERE",
+		password: "INSERT_PASSWORD_HERE"
+	},
+	storage: {
+		path: "./storage"
+	}
+}
