@@ -2,3 +2,5 @@ dist
 node_modules
 config.yson
 storage
+src/wordcount/import_dm.ts
+dm_export.json
