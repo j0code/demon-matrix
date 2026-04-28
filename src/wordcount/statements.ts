@@ -48,6 +48,18 @@ export function prepareStatements(db: Database) {
 			GROUP BY words.word_idx
 			ORDER BY total_count DESC
 			LIMIT @limit;	
+		`),
+
+		getToplistForUser: db.prepare(`
+			SELECT word, SUM(count) total_count FROM words
+			JOIN dictionary ON words.word_idx   = dictionary.word_idx
+			JOIN authors    ON words.author_idx = authors.author_idx
+			WHERE is_bot        = 0
+			AND   author_name   = @author_name
+			AND   author_domain = @author_domain
+			GROUP BY words.word_idx
+			ORDER BY total_count DESC
+			LIMIT @limit;	
 		`)
 	} as const
 
@@ -115,6 +127,10 @@ export function prepareStatements(db: Database) {
 		},
 
 		getToplist: (limit: number) => statements.getToplist.all({ limit }) as ({ word: string, total_count: number })[],
+		getToplistForUser: (filter: { author_name: string, author_domain: string }, limit: number) => {
+			return statements.getToplistForUser.all({ ...filter, limit }) as ({ word: string, total_count: number })[]
+		},
+
 
 		insertMessage: (message: MessageParsed) => transactions.insertMessage(message)
 	} satisfies Record<string, Function>

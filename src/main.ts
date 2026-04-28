@@ -35,6 +35,7 @@ async function logMessage(roomId: string, event: any) {
 
 import readline from "node:readline"
 import { WordCount } from "./wordcount/wordcount.js"
+import { parseUserId } from "./util.js"
 
 const wordCount = new WordCount(config)
 const dbReady = performance.now()
@@ -63,6 +64,27 @@ rl.on("line", (input: string) => {
 		logPerf(elapsed)
 		return console.groupEnd()
 	}
+
+	if (cmd == "usercount") {
+		const tag = args[0]
+		const limit = parseInt(args[1] ?? "10")
+		if (!tag) {
+			console.log("no user tag provided")
+			return console.groupEnd()
+		}
+		if (isNaN(limit) || limit < 1 || limit > 40) {
+			console.log("invalid limit")
+			return console.groupEnd()
+		}
+
+		const { result, elapsed } = perf(() => wordCount.getToplistForUser(tag, limit))
+		console.log(result)
+		logPerf(elapsed)
+		return console.groupEnd()
+	}
+
+	console.log("unknown command")
+	console.groupEnd()
 })
 
 rl.on("close", () => {

@@ -62,4 +62,15 @@ export class WordCount {
 		return text
 	}
 
+	public getToplistForUser(user_tag: string, limit: number = 0) {
+		const { name: author_name, domain: author_domain  } = parseUserId(user_tag)
+		const list = this.queries.getToplistForUser({ author_name, author_domain }, limit)
+
+		let text = `TOP ${limit} FOR USER ${user_tag}\n`
+		text += "word count\n"
+		text += list.map(entry => `${entry.word} ${entry.total_count}`).join("\n")
+
+		return text
+	}
+
 }
