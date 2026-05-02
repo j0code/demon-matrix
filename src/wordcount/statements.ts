@@ -1,6 +1,7 @@
-import { type Statement, type Database, Transaction } from "better-sqlite3"
+import { type Database, Transaction } from "better-sqlite3"
 import { type Author, type DictionaryEntry, type Room } from "./db_types.js"
 import { type MessageParsed } from "./types.js"
+import { dateToTimestamp } from "../util.js"
 
 export function prepareStatements(db: Database) {
 	const statements = {
@@ -38,6 +39,13 @@ export function prepareStatements(db: Database) {
 		insertWord: db.prepare(`
 			INSERT INTO words (word_idx, author_idx, room_idx, ts, count)
 			VALUES (@word_idx, @author_idx, @room_idx, @ts, @count)
+		`),
+		getWords:   db.prepare(`
+			SELECT * FROM words
+			JOIN authors    ON words.author_idx = authors.author_idx
+			JOIN rooms      ON words.room_idx   = rooms.room_idx
+			JOIN dictionary ON words.word_idx   = dictionary.word_idx
+			WHERE words.author_idx = @author_idx;
 		`),
 
 		getToplist: db.prepare(`
@@ -94,11 +102,13 @@ export function prepareStatements(db: Database) {
 			for (const [word, count] of message.wordCounts.entries()) {
 				statements.insertDictionaryEntry!.run({ word })
 				const entry = statements.getDictionaryEntry!.get({ word }) as DictionaryEntry
+				const ts = dateToTimestamp(message.ts)
+				console.log(message.ts, ts)
 				statements.insertWord!.run({
 					word_idx:   entry.word_idx,
 					author_idx: authorRow.author_idx,
 					room_idx:   roomRow.room_idx,
-					ts:         message.ts,
+					ts:         ts,
 					count
 				})
 			}
@@ -125,6 +135,7 @@ export function prepareStatements(db: Database) {
 		insertWord: (wordcount: { word_idx: number, author_idx: number, room_idx: number, ts: number, count: number }) => {
 			return statements.insertWord.run(wordcount)
 		},
+		getWords:   (author_idx: number) => statements.getWords.all({ author_idx }),
 
 		getToplist: (limit: number) => statements.getToplist.all({ limit }) as ({ word: string, total_count: number })[],
 		getToplistForUser: (filter: { author_name: string, author_domain: string }, limit: number) => {

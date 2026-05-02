@@ -1,11 +1,12 @@
-import { Statement, Transaction, type Database } from "better-sqlite3"
+import { type Database } from "better-sqlite3"
 import { Config } from "../types.js"
 import { setupDB } from "../db/Database.js"
 import fs from "node:fs/promises"
 import { tokenize } from "./tokenize.js"
 import { prepareStatements } from "./statements.js"
-import { parseUserId } from "../util.js"
+import { parseUserId, timestampToDate } from "../util.js"
 import { type Message, type MessageParsed } from "./types.js"
+import { stringify as csvStringify } from "csv-stringify/sync"
 
 const setupPath = "./sql/wordcount_setup.sql"
 const setupSQL  = await fs.readFile(setupPath, "utf-8")
@@ -63,7 +64,7 @@ export class WordCount {
 	}
 
 	public getToplistForUser(user_tag: string, limit: number = 0) {
-		const { name: author_name, domain: author_domain  } = parseUserId(user_tag)
+		const { name: author_name, domain: author_domain } = parseUserId(user_tag)
 		const list = this.queries.getToplistForUser({ author_name, author_domain }, limit)
 
 		let text = `TOP ${limit} FOR USER ${user_tag}\n`
@@ -71,6 +72,43 @@ export class WordCount {
 		text += list.map(entry => `${entry.word} ${entry.total_count}`).join("\n")
 
 		return text
+	}
+
+	public exportUserData(user_tag: string, format: "csv" | "yson" | "yson-pretty" = "csv") {
+		const { name: author_name, domain: author_domain } = parseUserId(user_tag)
+		const author = this.queries.getAuthor({ author_name, author_domain })
+		const words  = this.queries.getWords(author.author_idx) as any[]
+		const authorData = {
+			name: author.author_name,
+			domain: author.author_domain,
+			uid: author.author_uid,
+			is_bot: author.is_bot
+		}
+		const wordsData: any[] = []
+
+		for (const word of words) {
+			wordsData.push({
+				word: word.word,
+				count: word.count,
+				language: word.language,
+				room: word.room_tag,
+				timestamp: timestampToDate(word.ts)
+			})
+		}
+		
+
+		if (format == "csv") {
+			const authorCsv = csvStringify([authorData], {
+				header: true
+			})
+			const wordsCsv  = csvStringify(wordsData.slice(0, 10), {
+				header: true
+			})
+
+			return { author: authorCsv, words: wordsCsv }
+		}
+
+		return { author: "" }
 	}
 
 }

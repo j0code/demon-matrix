@@ -27,6 +27,7 @@
   "dependencies": {
     "@j0code/yson": "npm:@jsr/j0code__yson@^1.2.4",
     "better-sqlite3": "^12.9.0",
+    "csv-stringify": "^6.7.0",
     "matrix-bot-sdk": "^0.8.0"
   },
   "devDependencies": {

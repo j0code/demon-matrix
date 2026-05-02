@@ -83,7 +83,23 @@ rl.on("line", (input: string) => {
 		return console.groupEnd()
 	}
 
-	console.log("unknown command")
+	if (cmd == "export") {
+		const tag = args[0]
+		if (!tag) {
+			console.log("no user tag provided")
+			return console.groupEnd()
+		}
+
+		const { result, elapsed } = perf(() => wordCount.exportUserData(tag))
+		console.log(`AUTHOR.csv`)
+		console.log(result.author)
+		console.log(`WORDS.csv`)
+		console.log(result.words)
+		logPerf(elapsed)
+		return console.groupEnd()
+	}
+
+	console.log(`unknown command '${cmd}'`)
 	console.groupEnd()
 })
 
@@ -91,7 +107,7 @@ rl.on("close", () => {
 	process.exit(0)
 })
 
-function perf(fn: Function) {
+function perf<T>(fn: () => T) {
 	const before = performance.now()
 	const result = fn()
 
