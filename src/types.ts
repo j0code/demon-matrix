@@ -8,3 +8,9 @@ export interface Config {
 		path: string
 	}
 }
+
+export interface ParsedUser {
+	name: string,
+	domain: string,
+	tag: string
+}

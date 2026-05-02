@@ -1,5 +1,5 @@
 import { type Database } from "better-sqlite3"
-import { Config } from "../types.js"
+import { Config, ParsedUser } from "../types.js"
 import { setupDB } from "../db/Database.js"
 import fs from "node:fs/promises"
 import { tokenize } from "./tokenize.js"
@@ -7,6 +7,11 @@ import { prepareStatements } from "./statements.js"
 import { parseUserId, timestampToDate } from "../util.js"
 import { type Message, type MessageParsed } from "./types.js"
 import { stringify as csvStringify } from "csv-stringify/sync"
+import CommandRegistry from "../commands/CommandRegistry.js"
+import WordCountCommand from "./commands/WordCountCommand.js"
+import UserWordCountCommand from "./commands/UserWordCountCommand.js"
+import CommandGroup from "../commands/CommandGroup.js"
+import WordCountDataExportCommand from "./commands/WordCountDataExportCommand.js"
 
 const setupPath = "./sql/wordcount_setup.sql"
 const setupSQL  = await fs.readFile(setupPath, "utf-8")
@@ -16,11 +21,17 @@ export class WordCount {
 	private queries: ReturnType<typeof prepareStatements>
 	private authorMap:  Record<string, string>
 
-	constructor(config: Config, authorMap: Record<string, string> = {}) {
+	constructor(config: Config, commandRegistry: CommandRegistry, authorMap: Record<string, string> = {}) {
 		this.db = setupDB(config, "wordcount/wordcount.db")
 		this.db.exec(setupSQL)
 		this.queries = prepareStatements(this.db)
-		this.authorMap    = authorMap
+		this.authorMap = authorMap
+
+		const wordCountCommand = new CommandGroup("word counts")
+		wordCountCommand.registerCommand("top",    new WordCountCommand(this))
+		wordCountCommand.registerCommand("user",   new UserWordCountCommand(this))
+		wordCountCommand.registerCommand("export", new WordCountDataExportCommand(this))
+		commandRegistry.registerCommand("wordcount", wordCountCommand)
 	}
 
 	public addMessage(message: Message) {
@@ -54,44 +65,43 @@ export class WordCount {
 	}
 
 	public getToplist(limit: number = 10) {
-		const list = this.queries.getToplist(limit)
-
-		let text = `TOP ${limit}\n`
-		text += "word count\n"
-		text += list.map(entry => `${entry.word} ${entry.total_count}`).join("\n")
-
-		return text
+		const wordCount = this.queries.getTotalWordCount()
+		const uniqueWordCount = this.queries.getDictionaryEntryCount()
+		const toplist = this.queries.getToplist(limit)
+		return { toplist, wordCount, uniqueWordCount }
 	}
 
 	public getToplistForUser(user_tag: string, limit: number = 0) {
 		const { name: author_name, domain: author_domain } = parseUserId(user_tag)
-		const list = this.queries.getToplistForUser({ author_name, author_domain }, limit)
+		const wordCount = this.queries.getTotalWordCountForUser(author_name, author_domain)
+		const toplist = this.queries.getToplistForUser({ author_name, author_domain }, limit)
 
-		let text = `TOP ${limit} FOR USER ${user_tag}\n`
-		text += "word count\n"
-		text += list.map(entry => `${entry.word} ${entry.total_count}`).join("\n")
-
-		return text
+		return { toplist, wordCount }
 	}
 
-	public exportUserData(user_tag: string, format: "csv" | "yson" | "yson-pretty" = "csv") {
-		const { name: author_name, domain: author_domain } = parseUserId(user_tag)
+	public exportUserData(user: ParsedUser, format: "csv" | "yson" | "yson-pretty" = "csv"): { author: string, words: string } | null {
+		const { name: author_name, domain: author_domain } = user
 		const author = this.queries.getAuthor({ author_name, author_domain })
+
+		if (!author) {
+			return null
+		}
+
 		const words  = this.queries.getWords(author.author_idx) as any[]
 		const authorData = {
-			name: author.author_name,
+			name:   author.author_name,
 			domain: author.author_domain,
-			uid: author.author_uid,
+			uid:    author.author_uid,
 			is_bot: author.is_bot
 		}
 		const wordsData: any[] = []
 
 		for (const word of words) {
 			wordsData.push({
-				word: word.word,
-				count: word.count,
-				language: word.language,
-				room: word.room_tag,
+				word:      word.word,
+				count:     word.count,
+				language:  word.language,
+				room:      word.room_tag,
 				timestamp: timestampToDate(word.ts)
 			})
 		}
@@ -101,14 +111,14 @@ export class WordCount {
 			const authorCsv = csvStringify([authorData], {
 				header: true
 			})
-			const wordsCsv  = csvStringify(wordsData.slice(0, 10), {
+			const wordsCsv  = csvStringify(wordsData, {
 				header: true
 			})
 
 			return { author: authorCsv, words: wordsCsv }
 		}
 
-		return { author: "" }
+		return { author: "", words: "" }
 	}
 
 }

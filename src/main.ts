@@ -2,22 +2,47 @@ import YSON from "@j0code/yson"
 import type { Config } from "./types.js"
 import { getAccessToken } from "./login.js"
 import { AutojoinRoomsMixin, MatrixClient, RustSdkCryptoStorageProvider, SimpleFsStorageProvider } from "matrix-bot-sdk"
+import { WordCount } from "./wordcount/WordCount.js"
+import CommandRegistry from "./commands/CommandRegistry.js"
+import HelpCommand from "./commands/HelpCommand.js"
+import { parseUserId } from "./util.js"
 
 const config = (await YSON.load("./config.yson")) as unknown as Config
-/*const accessToken = await getAccessToken(config)
+const accessToken = await getAccessToken(config)
 
 const storageProvider = new SimpleFsStorageProvider(`${config.storage.path}/bot.json`)
 const cryptoProvider  = new RustSdkCryptoStorageProvider(`${config.storage.path}/crypto`, 0)
 
+const commandRegistry = new CommandRegistry
+const wordCount = new WordCount(config, commandRegistry)
+const dbReady = performance.now()
+console.log(`DB ready after ${Math.floor(dbReady)/1000}s`)
+
+commandRegistry.registerCommand("help", new HelpCommand(commandRegistry))
+
 const client = new MatrixClient(config.account.homeserver_url, accessToken, storageProvider, cryptoProvider)
 AutojoinRoomsMixin.setupOnClient(client)
 
-client.on("room.message", async (roomId: string, event: any) => {
+client.on("room.message", async (roomId: string, event: unknown) => {
 	logMessage(roomId, event)
-	if (!event['content']?.['msgtype']) return
-	if (event['sender'] === await client.getUserId()) return
 
-	await client.replyNotice(roomId, event, "Hello world!")
+	if (!event || typeof event != "object" || event == null) return
+	if (!("sender"  in event) || typeof event.sender  != "string") return
+	if (!("content" in event) || typeof event.content != "object" || event.content == null) return
+	const senderTag = event.sender
+	const sender    = parseUserId(senderTag)
+	const content   = event.content
+
+	if (event.sender == await client.getUserId()) return
+
+	if (!("msgtype" in content) || typeof event.sender  != "string") return
+	if (!("body"    in content)) return
+	const msgtype = content.msgtype
+	const body    = content.body
+
+	if (msgtype == "m.text" && typeof body == "string" && body.startsWith("!")) {
+		commandRegistry.dispatchCommand(client, roomId, sender, body.slice(1))
+	}
 })
 
 client.start().then(() => console.log("Bot started!"))
@@ -31,15 +56,10 @@ async function logMessage(roomId: string, event: any) {
 	const roomNameEvent = await client.getRoomStateEvent(roomId, "m.room.name", "").catch(() => null)
 	const roomName = roomNameEvent?.name || roomId
 	console.log(`${msgtype} #${roomName} ${sender}: ${body}`)
-} */
+}
 
-import readline from "node:readline"
-import { WordCount } from "./wordcount/wordcount.js"
+/*import readline from "node:readline"
 import { parseUserId } from "./util.js"
-
-const wordCount = new WordCount(config)
-const dbReady = performance.now()
-console.log(`DB ready after ${Math.floor(dbReady)/1000}s`)
 
 const rl = readline.createInterface({
 	input: process.stdin,
@@ -116,4 +136,4 @@ function perf<T>(fn: () => T) {
 
 function logPerf(elapsed: number) {
 	console.log(`🕒 query took ${elapsed}s`)
-}
+}*/

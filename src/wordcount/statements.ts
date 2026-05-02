@@ -14,6 +14,10 @@ export function prepareStatements(db: Database) {
 			SELECT * FROM dictionary WHERE word = @word
 		`),
 
+		getDictionaryEntryCount: db.prepare(`
+			SELECT COUNT(*) as count FROM dictionary;
+		`),
+
 		insertAuthor: db.prepare(`
 			INSERT INTO authors (author_name, author_domain, author_uid, is_bot)
 			VALUES (@author_name, @author_domain, @author_uid, @is_bot) ON CONFLICT(author_name, author_domain) DO NOTHING
@@ -40,12 +44,24 @@ export function prepareStatements(db: Database) {
 			INSERT INTO words (word_idx, author_idx, room_idx, ts, count)
 			VALUES (@word_idx, @author_idx, @room_idx, @ts, @count)
 		`),
+
 		getWords:   db.prepare(`
 			SELECT * FROM words
 			JOIN authors    ON words.author_idx = authors.author_idx
 			JOIN rooms      ON words.room_idx   = rooms.room_idx
 			JOIN dictionary ON words.word_idx   = dictionary.word_idx
 			WHERE words.author_idx = @author_idx;
+		`),
+
+		getTotalWordCount: db.prepare(`
+			SELECT SUM(count) as total_count FROM words;
+		`),
+
+		getTotalWordCountForUser: db.prepare(`
+			SELECT SUM(count) as total_count FROM words
+			JOIN authors ON words.author_idx = authors.author_idx
+			WHERE author_name   = @author_name
+			AND   author_domain = @author_domain;
 		`),
 
 		getToplist: db.prepare(`
@@ -103,7 +119,6 @@ export function prepareStatements(db: Database) {
 				statements.insertDictionaryEntry!.run({ word })
 				const entry = statements.getDictionaryEntry!.get({ word }) as DictionaryEntry
 				const ts = dateToTimestamp(message.ts)
-				console.log(message.ts, ts)
 				statements.insertWord!.run({
 					word_idx:   entry.word_idx,
 					author_idx: authorRow.author_idx,
@@ -116,17 +131,21 @@ export function prepareStatements(db: Database) {
 	} satisfies Record<string, Transaction>
 
 	return {
-		insertDictionaryEntry: (entry:  { word: string }) => statements.insertDictionaryEntry.run(entry),
-		getDictionaryEntry:    (filter: { word: string }) => statements.getDictionaryEntry.get(filter) as DictionaryEntry,
+		insertDictionaryEntry:   (entry:  { word: string }) => statements.insertDictionaryEntry.run(entry),
+		getDictionaryEntry:      (filter: { word: string }) => statements.getDictionaryEntry.get(filter) as DictionaryEntry,
+		getDictionaryEntryCount: () => {
+			const result = statements.getDictionaryEntryCount.get() as { count: number }
+			return result.count
+		},
 
 		insertAuthor:   (author: { author_name: string, author_domain: string, author_uid: string, is_bot: boolean }) => {
 			return statements.insertAuthor.run({ ...author, is_bot: Number(author.is_bot) })
 		},
 		getAuthor:      (filter: { author_name: string, author_domain: string }) => {
-			return statements.getAuthor.get(filter) as Author
+			return statements.getAuthor.get(filter) as Author | null
 		},
 		getAuthorByUid: (filter: { author_uid: string }) => {
-			return statements.getAuthorByUid.get(filter) as Author
+			return statements.getAuthorByUid.get(filter) as Author | null
 		},
 
 		insertRoom: (room:   { room_tag: string }) => statements.insertRoom.run(room),
@@ -136,6 +155,14 @@ export function prepareStatements(db: Database) {
 			return statements.insertWord.run(wordcount)
 		},
 		getWords:   (author_idx: number) => statements.getWords.all({ author_idx }),
+		getTotalWordCount: () => {
+			const result = statements.getTotalWordCount.get() as { total_count: number }
+			return result.total_count
+		},
+		getTotalWordCountForUser: (author_name: string, author_domain: string) => {
+			const result = statements.getTotalWordCountForUser.get({ author_name, author_domain }) as { total_count: number }
+			return result.total_count
+		},
 
 		getToplist: (limit: number) => statements.getToplist.all({ limit }) as ({ word: string, total_count: number })[],
 		getToplistForUser: (filter: { author_name: string, author_domain: string }, limit: number) => {
