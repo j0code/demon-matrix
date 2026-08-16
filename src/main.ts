@@ -29,9 +29,11 @@ client.on("room.message", async (roomId: string, event: unknown) => {
 	if (!event || typeof event != "object" || event == null) return
 	if (!("sender"  in event) || typeof event.sender  != "string") return
 	if (!("content" in event) || typeof event.content != "object" || event.content == null) return
+	if (!("origin_server_ts" in event) || typeof event.origin_server_ts != "number") return
 	const senderTag = event.sender
 	const sender    = parseUserId(senderTag)
 	const content   = event.content
+	const ts        = Temporal.Instant.fromEpochMilliseconds(event.origin_server_ts).toString()
 
 	if (event.sender == await client.getUserId()) return
 
@@ -40,9 +42,15 @@ client.on("room.message", async (roomId: string, event: unknown) => {
 	const msgtype = content.msgtype
 	const body    = content.body
 
-	if (msgtype == "m.text" && typeof body == "string" && body.startsWith("!")) {
-		commandRegistry.dispatchCommand(client, roomId, sender, body.slice(1))
+	if (msgtype == "m.text" && typeof body == "string") {
+		if (body.startsWith("!")) {
+			commandRegistry.dispatchCommand(client, roomId, sender, body.slice(1))
+		} else {
+			wordCount.addMessage(body, sender, roomId, ts)
+		}
 	}
+
+
 })
 
 client.start().then(() => console.log("Bot started!"))

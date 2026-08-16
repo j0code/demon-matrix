@@ -9,8 +9,12 @@ export interface Config {
 	}
 }
 
-export interface ParsedUser {
+export interface ParsedUserName {
 	name: string,
-	domain: string,
-	tag: string
+	domain: string
+	id: string
+}
+
+export interface ParsedUser extends ParsedUserName {
+	is_bot: boolean
 }

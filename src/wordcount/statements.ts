@@ -1,6 +1,6 @@
 import { type Database, Transaction } from "better-sqlite3"
 import { type Author, type DictionaryEntry, type Room } from "./db_types.js"
-import { type MessageParsed } from "./types.js"
+import { type Message } from "./types.js"
 import { dateToTimestamp } from "../util.js"
 
 export function prepareStatements(db: Database) {
@@ -90,9 +90,9 @@ export function prepareStatements(db: Database) {
 	const authorMap = new Map<string, Set<string>>()
 
 	const transactions = {
-		insertMessage: db.transaction((message: MessageParsed) => {
-			const { author_name, author_domain, author_uid, is_bot } = message.author
-			const { room_tag } = message.room
+		insertMessage: db.transaction((message: Message) => {
+			const { name: author_name, domain: author_domain, id: author_uid, is_bot } = message.author
+			const { id: room_tag } = message.room
 			const authorRowBefore = statements.getAuthorByUid!.get({ author_uid }) as Author | null
 
 			if (!authorRowBefore) statements.insertAuthor!.run({ author_name, author_domain, author_uid, is_bot: Number(is_bot) })
@@ -170,6 +170,6 @@ export function prepareStatements(db: Database) {
 		},
 
 
-		insertMessage: (message: MessageParsed) => transactions.insertMessage(message)
+		insertMessage: (message: Message) => transactions.insertMessage(message)
 	} satisfies Record<string, Function>
 }

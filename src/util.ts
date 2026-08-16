@@ -16,11 +16,11 @@ export function timestampToDate(timestamp: BigInt): string {
 
 export function parseUserId(user_id: string): ParsedUser {
 	if (user_id.startsWith("@")) user_id = user_id.slice(1)
-	if (!user_id.includes(":")) return { name: user_id, domain: "", tag: `@${user_id}` }
+	if (!user_id.includes(":")) return { name: user_id, domain: "", id: `@${user_id}`, is_bot: false }
 
 	const [name, domain] = user_id.split(":") as [string, string]
 
-	return { name, domain, tag: `@${name}:${domain}` }
+	return { name, domain, id: `@${name}:${domain}`, is_bot: false }
 }
 
 export function codeblockTable(content: (string | number)[][], gap: string = " ") {

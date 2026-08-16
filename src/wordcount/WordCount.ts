@@ -5,7 +5,7 @@ import fs from "node:fs/promises"
 import { tokenize } from "./tokenize.js"
 import { prepareStatements } from "./statements.js"
 import { parseUserId, timestampToDate } from "../util.js"
-import { type Message, type MessageParsed } from "./types.js"
+import { type Message } from "./types.js"
 import { stringify as csvStringify } from "csv-stringify/sync"
 import CommandRegistry from "../commands/CommandRegistry.js"
 import WordCountCommand from "./commands/WordCountCommand.js"
@@ -34,34 +34,35 @@ export class WordCount {
 		commandRegistry.registerCommand("wordcount", wordCountCommand)
 	}
 
-	public addMessage(message: Message) {
-		const words  = tokenize(message.text)
+	public addMessage(text: string, author: ParsedUser, room_tag: string, ts: string) {
+		const words  = tokenize(text)
 		const counts = new Map<string, number>()
-		const rawAuthor = message.author
-		const rawRoom   = message.room
-		let { name: author_name, domain: author_domain } = parseUserId(rawAuthor.author_tag)
+		let author_name = author.name
 
-		if (rawAuthor.author_uid in this.authorMap) {
-			author_name = this.authorMap[rawAuthor.author_uid]!
+		if (author.id in this.authorMap) {
+			author_name = this.authorMap[author.id]!
 		}
 
 		for (const word of words) {
 			counts.set(word, (counts.get(word) || 0) + 1)
 		}
 
+		// console.log("got message", text)
+		// console.log("tokenized to", words)
+		// console.log("author:", author)
+
 		this.queries.insertMessage!({
-			text: message.text,
+			text,
 			wordCounts: counts,
 			author: {
-				...rawAuthor,
-				author_name,
-				author_domain
+				...author,
+				name: author_name
 			},
 			room: {
-				...rawRoom
+				id: room_tag
 			},
-			ts: message.ts
-		} satisfies MessageParsed)
+			ts: ts
+		} satisfies Message)
 	}
 
 	public getToplist(limit: number = 10) {
